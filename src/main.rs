@@ -15,6 +15,7 @@ enum EntryType {
 #[derive(Debug)]
 struct FileEntry {
     name: String,
+    e_type: EntryType,
     len_bytes: u64,
     modified: String,
 }
@@ -33,7 +34,7 @@ fn main() {
     if let Ok(does_exists) = fs::exists(&path) {
         if does_exists {
             for file in get_files(&path) {
-                println!("{}", file)
+                println!("{:?}", file)
             }
         } else {
             println!("{}", "Path does not exists".red());
@@ -41,19 +42,35 @@ fn main() {
     } else {
         println!("{}", "error reading directory".red());
     }
-
-    // println!("{}", path.display());
 }
 
-fn get_files(path: &Path) -> Vec<String> {
+fn get_files(path: &Path) -> Vec<FileEntry> {
     let mut data = Vec::default();
     if let Ok(read_dir) = fs::read_dir(path) {
         for entry in read_dir {
             if let Ok(file) = entry {
-                data.push(file.file_name().into_string().unwrap_or("unknown".into()));
+                map_data(&mut data, file);
             }
         }
     }
 
     data
+}
+
+fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry) {
+    if let Ok(meta) = fs::metadata(&file.path()) {
+        data.push(FileEntry {
+            name: file
+                .file_name()
+                .into_string()
+                .unwrap_or("unknown name".into()),
+            e_type: if meta.is_dir() {
+                EntryType::Dir
+            } else {
+                EntryType::File
+            },
+            len_bytes: meta.len(),
+            modified: "".to_string(),
+        });
+    }
 }
