@@ -5,6 +5,14 @@ use std::{
     path::{Path, PathBuf},
 };
 use strum::Display;
+use tabled::{
+    Table, Tabled,
+    settings::{
+        Color, Style,
+        object::{Column, Columns, Row, Rows},
+        span::ColumnSpan,
+    },
+};
 
 #[derive(Debug, Display)]
 enum EntryType {
@@ -12,10 +20,13 @@ enum EntryType {
     Dir,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Tabled)]
 struct FileEntry {
+    #[tabled{rename="Name"}]
     name: String,
+    #[tabled{rename="Type"}]
     e_type: EntryType,
+    #[tabled{rename="Size B"}]
     len_bytes: u64,
     modified: String,
 }
@@ -33,9 +44,14 @@ fn main() {
 
     if let Ok(does_exists) = fs::exists(&path) {
         if does_exists {
-            for file in get_files(&path) {
-                println!("{:?}", file)
-            }
+            let get_files = get_files(&path);
+            let mut table = Table::new(get_files);
+            table.with(Style::rounded());
+            table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
+            table.modify(Columns::one(2), Color::FG_BRIGHT_MAGENTA);
+            table.modify(Columns::one(3), Color::FG_BRIGHT_YELLOW);
+            table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
+            println!("{}", table);
         } else {
             println!("{}", "Path does not exists".red());
         }
