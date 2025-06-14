@@ -4,6 +4,20 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use strum::Display;
+
+#[derive(Debug, Display)]
+enum EntryType {
+    File,
+    Dir,
+}
+
+#[derive(Debug)]
+struct FileEntry {
+    name: String,
+    len_bytes: u64,
+    modified: String,
+}
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = "Best ls command ever")]
