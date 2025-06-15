@@ -63,6 +63,28 @@ fn main() {
     } else {
         println!("{}", "error reading directory".red());
     }
+
+    // match fs::exists(&path) {
+    //     Ok(does_exists) => {
+    //         if does_exists {
+    //             if cli.json {
+    //                 let get_files = get_files(&path);
+    //                 println!(
+    //                     "{}",
+    //                     serde_json::to_string_pretty(&get_files)
+    //                         .unwrap_or("cannot parse json".to_string())
+    //                 );
+    //             } else {
+    //                 print_table(path);
+    //             }
+    //         } else {
+    //             println!("{}", "Path does not exists".red());
+    //         }
+    //     }
+    //     Err(_) => {
+    //         println!("{}", "error reading directory".red());
+    //     }
+    // }
 }
 
 fn print_table(path: PathBuf) {
@@ -76,37 +98,37 @@ fn print_table(path: PathBuf) {
     println!("{}", table);
 }
 
-// fn get_files(path: &Path) -> Vec<FileEntry> {
-//     let mut data = Vec::default();
-//     if let Ok(read_dir) = fs::read_dir(path) {
-//         for entry in read_dir {
-//             if let Ok(file) = entry {
-//                 map_data(&mut data, file);
-//             }
-//         }
-//     }
-
-//     data
-// }
-
 fn get_files(path: &Path) -> Vec<FileEntry> {
     let mut data = Vec::default();
-    match fs::read_dir(path) {
-        Ok(read_dir) => {
-            for entry in read_dir {
-                    match entry {
-                        Ok(file) => {
-                            map_data(&mut data, file);
-                        }
-                        _ => (),
-                    }
-                }
+    if let Ok(read_dir) = fs::read_dir(path) {
+        for entry in read_dir {
+            if let Ok(file) = entry {
+                map_data(&mut data, file);
+            }
         }
-        _ => (),
     }
 
     data
 }
+
+// fn get_files(path: &Path) -> Vec<FileEntry> {
+//     let mut data = Vec::default();
+//     match fs::read_dir(path) {
+//         Ok(read_dir) => {
+//             for entry in read_dir {
+//                 match entry {
+//                     Ok(file) => {
+//                         map_data(&mut data, file);
+//                     }
+//                     _ => (),
+//                 }
+//             }
+//         }
+//         _ => (),
+//     }
+
+//     data
+// }
 
 fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry) {
     if let Ok(meta) = fs::metadata(&file.path()) {
@@ -130,3 +152,30 @@ fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry) {
         });
     }
 }
+
+// fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry) {
+//     match fs::metadata(&file.path()) {
+//         Ok(meta) => {
+//             data.push(FileEntry {
+//                 name: file
+//                     .file_name()
+//                     .into_string()
+//                     .unwrap_or("unknown name".into()),
+//                 e_type: if meta.is_dir() {
+//                     EntryType::Dir
+//                 } else {
+//                     EntryType::File
+//                 },
+//                 len_bytes: meta.len(),
+//                 modified: match meta.modified() {
+//                     Ok(modi) => {
+//                         let date: DateTime<Utc> = modi.into();
+//                         format!("{}", date.format("%a %b %e %Y"))
+//                     }
+//                     Err(_) => String::default(),
+//                 },
+//             });
+//         }
+//         _ => (),
+//     }
+// }
