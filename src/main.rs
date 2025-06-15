@@ -76,14 +76,33 @@ fn print_table(path: PathBuf) {
     println!("{}", table);
 }
 
+// fn get_files(path: &Path) -> Vec<FileEntry> {
+//     let mut data = Vec::default();
+//     if let Ok(read_dir) = fs::read_dir(path) {
+//         for entry in read_dir {
+//             if let Ok(file) = entry {
+//                 map_data(&mut data, file);
+//             }
+//         }
+//     }
+
+//     data
+// }
+
 fn get_files(path: &Path) -> Vec<FileEntry> {
     let mut data = Vec::default();
-    if let Ok(read_dir) = fs::read_dir(path) {
-        for entry in read_dir {
-            if let Ok(file) = entry {
-                map_data(&mut data, file);
-            }
+    match fs::read_dir(path) {
+        Ok(read_dir) => {
+            for entry in read_dir {
+                    match entry {
+                        Ok(file) => {
+                            map_data(&mut data, file);
+                        }
+                        _ => (),
+                    }
+                }
         }
+        _ => (),
     }
 
     data
