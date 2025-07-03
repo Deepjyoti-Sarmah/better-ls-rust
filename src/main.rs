@@ -86,11 +86,15 @@ fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
     if let Ok(read_dir) = fs::read_dir(path) {
         for entry in read_dir {
             if let Ok(file) = entry {
+                let file_name_str = file.file_name().to_string_lossy().to_string();
+
+                if !cli.all && file_name_str.starts_with(".") {
+                    continue;
+                }
                 map_data(&mut data, file, cli);
             }
         }
     }
-
     data
 }
 
