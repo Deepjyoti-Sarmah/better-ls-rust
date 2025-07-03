@@ -38,24 +38,27 @@ struct Cli {
     path: Option<PathBuf>,
     #[arg(short, long)]
     json: bool,
+
+    #[arg(short, long, help = "Show hidden files")]
+    all: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    let path = cli.path.unwrap_or(PathBuf::from("."));
+    let path = cli.path.as_ref().cloned().unwrap_or(PathBuf::from("."));
 
     if let Ok(does_exists) = fs::exists(&path) {
         if does_exists {
             if cli.json {
-                let get_files = get_files(&path);
+                let get_files = get_files(&path, &cli);
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&get_files)
                         .unwrap_or("cannot parse json".to_string())
                 );
             } else {
-                print_table(path);
+                print_table(path, &cli);
             }
         } else {
             println!("{}", "Path does not exists".red());
@@ -63,47 +66,27 @@ fn main() {
     } else {
         println!("{}", "error reading directory".red());
     }
-
-    // match fs::exists(&path) {
-    //     Ok(does_exists) => {
-    //         if does_exists {
-    //             if cli.json {
-    //                 let get_files = get_files(&path);
-    //                 println!(
-    //                     "{}",
-    //                     serde_json::to_string_pretty(&get_files)
-    //                         .unwrap_or("cannot parse json".to_string())
-    //                 );
-    //             } else {
-    //                 print_table(path);
-    //             }
-    //         } else {
-    //             println!("{}", "Path does not exists".red());
-    //         }
-    //     }
-    //     Err(_) => {
-    //         println!("{}", "error reading directory".red());
-    //     }
-    // }
 }
 
-fn print_table(path: PathBuf) {
-    let get_files = get_files(&path);
+fn print_table(path: PathBuf, cli: &Cli) {
+    let get_files = get_files(&path, cli);
     let mut table = Table::new(get_files);
     table.with(Style::rounded());
+
     table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
     table.modify(Columns::one(2), Color::FG_BRIGHT_MAGENTA);
     table.modify(Columns::one(3), Color::FG_BRIGHT_YELLOW);
     table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
+
     println!("{}", table);
 }
 
-fn get_files(path: &Path) -> Vec<FileEntry> {
+fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
     let mut data = Vec::default();
     if let Ok(read_dir) = fs::read_dir(path) {
         for entry in read_dir {
             if let Ok(file) = entry {
-                map_data(&mut data, file);
+                map_data(&mut data, file, cli);
             }
         }
     }
@@ -111,26 +94,7 @@ fn get_files(path: &Path) -> Vec<FileEntry> {
     data
 }
 
-// fn get_files(path: &Path) -> Vec<FileEntry> {
-//     let mut data = Vec::default();
-//     match fs::read_dir(path) {
-//         Ok(read_dir) => {
-//             for entry in read_dir {
-//                 match entry {
-//                     Ok(file) => {
-//                         map_data(&mut data, file);
-//                     }
-//                     _ => (),
-//                 }
-//             }
-//         }
-//         _ => (),
-//     }
-
-//     data
-// }
-
-fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry) {
+fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry, cli: &Cli) {
     if let Ok(meta) = fs::metadata(&file.path()) {
         data.push(FileEntry {
             name: file
@@ -152,30 +116,3 @@ fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry) {
         });
     }
 }
-
-// fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry) {
-//     match fs::metadata(&file.path()) {
-//         Ok(meta) => {
-//             data.push(FileEntry {
-//                 name: file
-//                     .file_name()
-//                     .into_string()
-//                     .unwrap_or("unknown name".into()),
-//                 e_type: if meta.is_dir() {
-//                     EntryType::Dir
-//                 } else {
-//                     EntryType::File
-//                 },
-//                 len_bytes: meta.len(),
-//                 modified: match meta.modified() {
-//                     Ok(modi) => {
-//                         let date: DateTime<Utc> = modi.into();
-//                         format!("{}", date.format("%a %b %e %Y"))
-//                     }
-//                     Err(_) => String::default(),
-//                 },
-//             });
-//         }
-//         _ => (),
-//     }
-// }
