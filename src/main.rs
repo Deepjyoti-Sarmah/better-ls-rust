@@ -1,7 +1,10 @@
 use chrono::{DateTime, Utc};
 use clap::Parser;
+use clap::builder::Str;
 use owo_colors::OwoColorize;
 use serde::Serialize;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::path;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -14,6 +17,7 @@ use tabled::{
         object::{Columns, Rows},
     },
 };
+use users::{Users, UsersCache};
 
 #[derive(Debug, Display, Serialize)]
 enum EntryType {
@@ -23,6 +27,10 @@ enum EntryType {
 
 #[derive(Debug, Tabled, Serialize)]
 struct FileEntry {
+    #[tabled(rename = "Permission")]
+    permissions: String,
+    #[tabled(rename = "Owner")]
+    owner: String,
     #[tabled{rename="Name"}]
     name: String,
     #[tabled{rename="Type"}]
@@ -41,6 +49,9 @@ struct Cli {
 
     #[arg(short, long, help = "Show hidden files")]
     all: bool,
+
+    #[arg(long, help = "List files in a tree-like format")]
+    tree: bool,
 }
 
 fn main() {
@@ -50,7 +61,9 @@ fn main() {
 
     if let Ok(does_exists) = fs::exists(&path) {
         if does_exists {
-            if cli.json {
+            if cli.tree {
+                print_tree(&path, "", &cli);
+            } else if cli.json {
                 let get_files = get_files(&path, &cli);
                 println!(
                     "{}",
@@ -65,6 +78,34 @@ fn main() {
         }
     } else {
         println!("{}", "error reading directory".red());
+    }
+}
+
+fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
+    let Ok(entries) = fs::read_dir(path) else {
+        return;
+    };
+    let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
+
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut peekable_entries = entries.into_iter().peekable();
+
+    while let Some(entry) = peekable_entries.next() {
+        let file_name_str = entry.file_name().to_string_lossy().to_string();
+        if !cli.all && file_name_str.starts_with(".") {
+            continue;
+        }
+
+        let is_last = peekable_entries.peek().is_none();
+        let connector = if is_last { "└── " } else { " ├── " };
+
+        println!("{}{}{}", prefix, connector, file_name_str.bright_blue());
+
+        if entry.path().is_dir() {
+            let new_prefix = if is_last { " " } else { "| " };
+            print_tree(&entry.path(), &format!("{}{}", prefix, new_prefix), cli);
+        }
     }
 }
 
@@ -99,8 +140,16 @@ fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
 }
 
 fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry, cli: &Cli) {
+    let cache = UsersCache::new();
     if let Ok(meta) = fs::metadata(&file.path()) {
+        let owner = cache
+            .get_user_by_uid(meta.uid())
+            .map(|u| u.name().to_string_lossy().to_string())
+            .unwrap_or_else(|| meta.uid().to_string());
+
         data.push(FileEntry {
+            permissions: format!("{:o}", meta.permissions().mode() & 0o777),
+            owner,
             name: file
                 .file_name()
                 .into_string()
