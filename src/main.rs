@@ -100,11 +100,26 @@ fn get_short_files(path: &Path, cli: &Cli) -> Vec<FileEntryShort> {
         for entry in read_dir {
             if let Ok(file) = entry {
                 let file_name_str = file.file_name().to_string_lossy().to_string();
-                if !cli.all && file_name_str.starts_with(".") {
+                if !cli.all && file_name_str.starts_with('.') {
                     continue;
                 }
+
+                // NEW LOGIC: Check the file type and color the name string
+                let colored_name = if let Ok(metadata) = file.metadata() {
+                    if metadata.is_dir() {
+                        // If it's a directory, make it blue and bold
+                        file_name_str.bright_blue().bold().to_string()
+                    } else {
+                        // Otherwise, just use the plain name
+                        file_name_str
+                    }
+                } else {
+                    // Fallback if we can't get metadata
+                    file_name_str
+                };
+
                 data.push(FileEntryShort {
-                    name: file_name_str,
+                    name: colored_name, // Push the colored string
                 });
             }
         }
@@ -116,8 +131,16 @@ fn print_long_table(path: &Path, cli: &Cli) {
     let get_files = get_long_files(path, cli);
     let mut table = Table::new(get_files);
 
-    table.with(Style::rounded());
-    table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
+    table.with(Style::rounded()); // Use rounded corners for the table
+
+    table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
+
+    table.modify(Columns::new(0..1), Color::FG_BRIGHT_YELLOW); // Permissions
+    table.modify(Columns::new(1..2), Color::FG_BRIGHT_WHITE); // Owner
+    table.modify(Columns::new(2..3), Color::FG_BRIGHT_CYAN); // Name
+    table.modify(Columns::new(3..4), Color::FG_WHITE); // Type
+    table.modify(Columns::new(4..5), Color::FG_BRIGHT_MAGENTA); // Size
+    table.modify(Columns::new(5..6), Color::FG_BRIGHT_BLUE); // Modified
 
     println!("{}", table);
 }
@@ -138,36 +161,6 @@ fn get_long_files(path: &Path, cli: &Cli) -> Vec<FileEntryLong> {
     data
 }
 
-// fn print_table(path: PathBuf, cli: &Cli) {
-//     let get_files = get_files(&path, cli);
-//     let mut table = Table::new(get_files);
-//     table.with(Style::rounded());
-//
-//     table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
-//     table.modify(Columns::one(2), Color::FG_BRIGHT_MAGENTA);
-//     table.modify(Columns::one(3), Color::FG_BRIGHT_YELLOW);
-//     table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
-//
-//     println!("{}", table);
-// }
-
-// fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
-//     let mut data = Vec::default();
-//     if let Ok(read_dir) = fs::read_dir(path) {
-//         for entry in read_dir {
-//             if let Ok(file) = entry {
-//                 let file_name_str = file.file_name().to_string_lossy().to_string();
-//
-//                 if !cli.all && file_name_str.starts_with(".") {
-//                     continue;
-//                 }
-//                 map_data(&mut data, file, cli);
-//             }
-//         }
-//     }
-//     data
-// }
-
 fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, _cli: &Cli) {
     let cache = UsersCache::new();
     if let Ok(meta) = fs::metadata(&file.path()) {
@@ -176,13 +169,23 @@ fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, _cli: &Cli) 
             .map(|u| u.name().to_string_lossy().to_string())
             .unwrap_or_else(|| meta.uid().to_string());
 
+        // Get the raw file name
+        let file_name = file
+            .file_name()
+            .into_string()
+            .unwrap_or("unknown name".into());
+
+        // Check if it's a directory and create a colored string
+        let colored_name = if meta.is_dir() {
+            file_name.bright_blue().bold().to_string()
+        } else {
+            file_name
+        };
+
         data.push(FileEntryLong {
             permissions: format!("{:o}", meta.permissions().mode() & 0o777),
             owner,
-            name: file
-                .file_name()
-                .into_string()
-                .unwrap_or("unknown name".into()),
+            name: colored_name, // Use the colored name here
             e_type: if meta.is_dir() {
                 EntryType::Dir
             } else {
