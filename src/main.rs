@@ -76,7 +76,6 @@ fn main() {
                     serde_json::to_string_pretty(&files).unwrap_or("cannot parse json".to_string())
                 );
             } else if cli.long {
-                // print_table(path, &cli);
                 print_long_table(&path, &cli);
             } else {
                 print_short_table(&path, &cli)
@@ -139,34 +138,6 @@ fn get_long_files(path: &Path, cli: &Cli) -> Vec<FileEntryLong> {
     data
 }
 
-fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
-    let Ok(entries) = fs::read_dir(path) else {
-        return;
-    };
-    let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
-
-    entries.sort_by_key(|e| e.file_name());
-
-    let mut peekable_entries = entries.into_iter().peekable();
-
-    while let Some(entry) = peekable_entries.next() {
-        let file_name_str = entry.file_name().to_string_lossy().to_string();
-        if !cli.all && file_name_str.starts_with(".") {
-            continue;
-        }
-
-        let is_last = peekable_entries.peek().is_none();
-        let connector = if is_last { "└── " } else { " ├── " };
-
-        println!("{}{}{}", prefix, connector, file_name_str.bright_blue());
-
-        if entry.path().is_dir() {
-            let new_prefix = if is_last { " " } else { "| " };
-            print_tree(&entry.path(), &format!("{}{}", prefix, new_prefix), cli);
-        }
-    }
-}
-
 // fn print_table(path: PathBuf, cli: &Cli) {
 //     let get_files = get_files(&path, cli);
 //     let mut table = Table::new(get_files);
@@ -197,7 +168,7 @@ fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
 //     data
 // }
 
-fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, cli: &Cli) {
+fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, _cli: &Cli) {
     let cache = UsersCache::new();
     if let Ok(meta) = fs::metadata(&file.path()) {
         let owner = cache
@@ -225,5 +196,33 @@ fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, cli: &Cli) {
                 String::default()
             },
         });
+    }
+}
+
+fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
+    let Ok(entries) = fs::read_dir(path) else {
+        return;
+    };
+    let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
+
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut peekable_entries = entries.into_iter().peekable();
+
+    while let Some(entry) = peekable_entries.next() {
+        let file_name_str = entry.file_name().to_string_lossy().to_string();
+        if !cli.all && file_name_str.starts_with(".") {
+            continue;
+        }
+
+        let is_last = peekable_entries.peek().is_none();
+        let connector = if is_last { "└── " } else { " ├── " };
+
+        println!("{}{}{}", prefix, connector, file_name_str.bright_blue());
+
+        if entry.path().is_dir() {
+            let new_prefix = if is_last { " " } else { "| " };
+            print_tree(&entry.path(), &format!("{}{}", prefix, new_prefix), cli);
+        }
     }
 }
