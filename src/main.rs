@@ -1,10 +1,8 @@
 use chrono::{DateTime, Utc};
 use clap::Parser;
-use clap::builder::Str;
 use owo_colors::OwoColorize;
 use serde::Serialize;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::path;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -25,8 +23,13 @@ enum EntryType {
     Dir,
 }
 
+#[derive(Tabled)]
+struct FileEntryShort {
+    name: String,
+}
+
 #[derive(Debug, Tabled, Serialize)]
-struct FileEntry {
+struct FileEntryLong {
     #[tabled(rename = "Permission")]
     permissions: String,
     #[tabled(rename = "Owner")]
@@ -37,6 +40,7 @@ struct FileEntry {
     e_type: EntryType,
     #[tabled{rename="Size B"}]
     len_bytes: u64,
+    #[tabled(rename = "Modified")]
     modified: String,
 }
 
@@ -50,13 +54,15 @@ struct Cli {
     #[arg(short, long, help = "Show hidden files")]
     all: bool,
 
+    #[arg(short, long, help = "Use a long listing format")]
+    long: bool,
+
     #[arg(long, help = "List files in a tree-like format")]
     tree: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
-
     let path = cli.path.as_ref().cloned().unwrap_or(PathBuf::from("."));
 
     if let Ok(does_exists) = fs::exists(&path) {
@@ -64,14 +70,16 @@ fn main() {
             if cli.tree {
                 print_tree(&path, "", &cli);
             } else if cli.json {
-                let get_files = get_files(&path, &cli);
+                let files = get_long_files(&path, &cli);
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&get_files)
-                        .unwrap_or("cannot parse json".to_string())
+                    serde_json::to_string_pretty(&files).unwrap_or("cannot parse json".to_string())
                 );
+            } else if cli.long {
+                // print_table(path, &cli);
+                print_long_table(&path, &cli);
             } else {
-                print_table(path, &cli);
+                print_short_table(&path, &cli)
             }
         } else {
             println!("{}", "Path does not exists".red());
@@ -79,6 +87,56 @@ fn main() {
     } else {
         println!("{}", "error reading directory".red());
     }
+}
+
+fn print_short_table(path: &Path, cli: &Cli) {
+    let files = get_short_files(path, cli);
+    let table = Table::new(files);
+    println!("{}", table);
+}
+
+fn get_short_files(path: &Path, cli: &Cli) -> Vec<FileEntryShort> {
+    let mut data = Vec::new();
+    if let Ok(read_dir) = fs::read_dir(path) {
+        for entry in read_dir {
+            if let Ok(file) = entry {
+                let file_name_str = file.file_name().to_string_lossy().to_string();
+                if !cli.all && file_name_str.starts_with(".") {
+                    continue;
+                }
+                data.push(FileEntryShort {
+                    name: file_name_str,
+                });
+            }
+        }
+    }
+    data
+}
+
+fn print_long_table(path: &Path, cli: &Cli) {
+    let get_files = get_long_files(path, cli);
+    let mut table = Table::new(get_files);
+
+    table.with(Style::rounded());
+    table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
+
+    println!("{}", table);
+}
+
+fn get_long_files(path: &Path, cli: &Cli) -> Vec<FileEntryLong> {
+    let mut data = Vec::new();
+    if let Ok(read_dir) = fs::read_dir(path) {
+        for entry in read_dir {
+            if let Ok(file) = entry {
+                let file_name_str = file.file_name().to_string_lossy().to_string();
+                if !cli.all && file_name_str.starts_with(".") {
+                    continue;
+                }
+                map_long_data(&mut data, file, cli);
+            }
+        }
+    }
+    data
 }
 
 fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
@@ -109,37 +167,37 @@ fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
     }
 }
 
-fn print_table(path: PathBuf, cli: &Cli) {
-    let get_files = get_files(&path, cli);
-    let mut table = Table::new(get_files);
-    table.with(Style::rounded());
+// fn print_table(path: PathBuf, cli: &Cli) {
+//     let get_files = get_files(&path, cli);
+//     let mut table = Table::new(get_files);
+//     table.with(Style::rounded());
+//
+//     table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
+//     table.modify(Columns::one(2), Color::FG_BRIGHT_MAGENTA);
+//     table.modify(Columns::one(3), Color::FG_BRIGHT_YELLOW);
+//     table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
+//
+//     println!("{}", table);
+// }
 
-    table.modify(Columns::first(), Color::FG_BRIGHT_CYAN);
-    table.modify(Columns::one(2), Color::FG_BRIGHT_MAGENTA);
-    table.modify(Columns::one(3), Color::FG_BRIGHT_YELLOW);
-    table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
+// fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
+//     let mut data = Vec::default();
+//     if let Ok(read_dir) = fs::read_dir(path) {
+//         for entry in read_dir {
+//             if let Ok(file) = entry {
+//                 let file_name_str = file.file_name().to_string_lossy().to_string();
+//
+//                 if !cli.all && file_name_str.starts_with(".") {
+//                     continue;
+//                 }
+//                 map_data(&mut data, file, cli);
+//             }
+//         }
+//     }
+//     data
+// }
 
-    println!("{}", table);
-}
-
-fn get_files(path: &Path, cli: &Cli) -> Vec<FileEntry> {
-    let mut data = Vec::default();
-    if let Ok(read_dir) = fs::read_dir(path) {
-        for entry in read_dir {
-            if let Ok(file) = entry {
-                let file_name_str = file.file_name().to_string_lossy().to_string();
-
-                if !cli.all && file_name_str.starts_with(".") {
-                    continue;
-                }
-                map_data(&mut data, file, cli);
-            }
-        }
-    }
-    data
-}
-
-fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry, cli: &Cli) {
+fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, cli: &Cli) {
     let cache = UsersCache::new();
     if let Ok(meta) = fs::metadata(&file.path()) {
         let owner = cache
@@ -147,7 +205,7 @@ fn map_data(data: &mut Vec<FileEntry>, file: fs::DirEntry, cli: &Cli) {
             .map(|u| u.name().to_string_lossy().to_string())
             .unwrap_or_else(|| meta.uid().to_string());
 
-        data.push(FileEntry {
+        data.push(FileEntryLong {
             permissions: format!("{:o}", meta.permissions().mode() & 0o777),
             owner,
             name: file
