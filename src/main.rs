@@ -76,7 +76,7 @@ fn main() {
     if let Ok(does_exists) = fs::exists(&path) {
         if does_exists {
             if cli.tree {
-                print_tree(&path, "", &cli);
+                print_tree(&path, &cli);
             } else if cli.json {
                 let files = get_long_files(&path, &cli);
                 println!(
@@ -244,30 +244,153 @@ fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, _cli: &Cli) 
     }
 }
 
-fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
+// fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
+//     print_tree_with_depth(path, prefix, cli, 0, 3);
+// }
+//
+// fn print_tree_with_depth(
+//     path: &Path,
+//     prefix: &str,
+//     cli: &Cli,
+//     current_depth: usize,
+//     max_depth: usize,
+// ) {
+//     if current_depth >= max_depth {
+//         return;
+//     }
+//
+//     let Ok(entries) = fs::read_dir(path) else {
+//         return;
+//     };
+//     let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
+//
+//     entries.sort_by_key(|e| e.file_name());
+//
+//     let mut peekable_entries = entries.into_iter().peekable();
+//
+//     while let Some(entry) = peekable_entries.next() {
+//         let file_name_str = entry.file_name().to_string_lossy().to_string();
+//         if !cli.all && file_name_str.starts_with(".") {
+//             continue;
+//         }
+//
+//         let is_last = peekable_entries.peek().is_none();
+//         let connector = if is_last { "└── " } else { " ├── " };
+//
+//         println!("{}{}{}", prefix, connector, file_name_str.bright_blue());
+//
+//         if entry.path().is_dir() {
+//             let new_prefix = if is_last { " " } else { "| " };
+//             print_tree_with_depth(
+//                 &entry.path(),
+//                 &format!("{}{}", prefix, new_prefix),
+//                 cli,
+//                 current_depth + 1,
+//                 max_depth,
+//             );
+//         }
+//     }
+// }
+
+fn print_tree(path: &Path, cli: &Cli) {
+    // Print the root directory name
+    let root_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string_lossy().to_string());
+
+    println!("{}", root_name.bright_blue().bold());
+
+    print_tree_recursive(path, "", cli, 0, 3, true);
+}
+
+fn print_tree_recursive(
+    path: &Path,
+    prefix: &str,
+    cli: &Cli,
+    current_depth: usize,
+    max_depth: usize,
+    is_root: bool,
+) {
+    if current_depth >= max_depth {
+        return;
+    }
+
     let Ok(entries) = fs::read_dir(path) else {
         return;
     };
+
     let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
 
-    entries.sort_by_key(|e| e.file_name());
+    // Sort entries: directories first, then files, both alphabetically
+    entries.sort_by(|a, b| {
+        let a_is_dir = a.path().is_dir();
+        let b_is_dir = b.path().is_dir();
 
-    let mut peekable_entries = entries.into_iter().peekable();
-
-    while let Some(entry) = peekable_entries.next() {
-        let file_name_str = entry.file_name().to_string_lossy().to_string();
-        if !cli.all && file_name_str.starts_with(".") {
-            continue;
+        match (a_is_dir, b_is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.file_name().cmp(&b.file_name()),
         }
+    });
 
-        let is_last = peekable_entries.peek().is_none();
-        let connector = if is_last { "└── " } else { " ├── " };
+    // Filter out hidden files if needed
+    let mut visible_entries: Vec<_> = entries
+        .into_iter()
+        .filter(|entry| {
+            let file_name_str = entry.file_name().to_string_lossy().to_string();
+            cli.all || !file_name_str.starts_with(".")
+        })
+        .collect();
 
-        println!("{}{}{}", prefix, connector, file_name_str.bright_blue());
+    for (index, entry) in visible_entries.iter().enumerate() {
+        let is_last = index == visible_entries.len() - 1;
+        let file_name_str = entry.file_name().to_string_lossy().to_string();
+        let is_directory = entry.path().is_dir();
 
-        if entry.path().is_dir() {
-            let new_prefix = if is_last { " " } else { "| " };
-            print_tree(&entry.path(), &format!("{}{}", prefix, new_prefix), cli);
+        // Choose the appropriate tree characters
+        let (connector, next_prefix) = if is_last {
+            ("└── ", format!("{}    ", prefix))
+        } else {
+            ("├── ", format!("{}│   ", prefix))
+        };
+
+        // Color the file name based on type
+        let colored_name = if is_directory {
+            file_name_str.bright_blue().bold().to_string()
+        } else {
+            // Check file extension for different colors
+            let extension = Path::new(&file_name_str)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .unwrap_or("");
+
+            match extension {
+                "rs" | "py" | "js" | "ts" | "go" | "cpp" | "c" | "java" => {
+                    file_name_str.bright_green().to_string()
+                }
+                "txt" | "md" | "readme" => file_name_str.bright_yellow().to_string(),
+                "json" | "yaml" | "yml" | "toml" | "xml" => file_name_str.bright_cyan().to_string(),
+                "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" => {
+                    file_name_str.bright_magenta().to_string()
+                }
+                _ => file_name_str.white().to_string(),
+            }
+        };
+
+        // Print the current entry
+        println!("{}{}{}", prefix, connector, colored_name);
+
+        // Recursively print subdirectories
+        if is_directory {
+            print_tree_recursive(
+                &entry.path(),
+                &next_prefix,
+                cli,
+                current_depth + 1,
+                max_depth,
+                false,
+            );
         }
     }
 }
