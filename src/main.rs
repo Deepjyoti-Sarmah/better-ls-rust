@@ -8,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use strum::Display;
+use tabled::settings::Modify;
 use tabled::{
     Table, Tabled,
     settings::{
@@ -25,7 +26,14 @@ enum EntryType {
 
 #[derive(Tabled)]
 struct FileEntryShort {
+    #[tabled(rename = "Name")]
     name: String,
+    #[tabled(rename = "Type")]
+    e_type: EntryType,
+    #[tabled(rename = "Size B")]
+    len_bytes: u64,
+    #[tabled(rename = "Modified")]
+    modified: String,
 }
 
 #[derive(Debug, Tabled, Serialize)]
@@ -90,7 +98,16 @@ fn main() {
 
 fn print_short_table(path: &Path, cli: &Cli) {
     let files = get_short_files(path, cli);
-    let table = Table::new(files);
+    let mut table = Table::new(files);
+
+    table.with(Style::rounded());
+    table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
+
+    table.modify(Columns::new(0..1), Color::FG_BRIGHT_CYAN);
+    table.modify(Columns::new(1..2), Color::FG_WHITE);
+    table.modify(Columns::new(2..3), Color::FG_BRIGHT_MAGENTA);
+    table.modify(Columns::new(3..4), Color::FG_BRIGHT_BLUE);
+
     println!("{}", table);
 }
 
@@ -103,28 +120,42 @@ fn get_short_files(path: &Path, cli: &Cli) -> Vec<FileEntryShort> {
                 if !cli.all && file_name_str.starts_with('.') {
                     continue;
                 }
-
-                // NEW LOGIC: Check the file type and color the name string
-                let colored_name = if let Ok(metadata) = file.metadata() {
-                    if metadata.is_dir() {
-                        // If it's a directory, make it blue and bold
-                        file_name_str.bright_blue().bold().to_string()
-                    } else {
-                        // Otherwise, just use the plain name
-                        file_name_str
-                    }
-                } else {
-                    // Fallback if we can't get metadata
-                    file_name_str
-                };
-
-                data.push(FileEntryShort {
-                    name: colored_name, // Push the colored string
-                });
+                map_short_data(&mut data, file, cli);
             }
         }
     }
     data
+}
+
+fn map_short_data(data: &mut Vec<FileEntryShort>, file: fs::DirEntry, _cli: &Cli) {
+    if let Ok(meta) = fs::metadata(&file.path()) {
+        let file_name = file
+            .file_name()
+            .into_string()
+            .unwrap_or("unknown name".into());
+
+        let colored_name = if meta.is_dir() {
+            file_name.bright_blue().bold().to_string()
+        } else {
+            file_name
+        };
+
+        data.push(FileEntryShort {
+            name: colored_name,
+            e_type: if meta.is_dir() {
+                EntryType::Dir
+            } else {
+                EntryType::File
+            },
+            len_bytes: meta.len(),
+            modified: if let Ok(modi) = meta.modified() {
+                let data: DateTime<Utc> = modi.into();
+                format!("{}", data.format("%a %b %e %Y"))
+            } else {
+                String::default()
+            },
+        });
+    }
 }
 
 fn print_long_table(path: &Path, cli: &Cli) {
