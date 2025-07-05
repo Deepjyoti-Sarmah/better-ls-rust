@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use strum::Display;
-use tabled::settings::Modify;
+use tabled::settings::{Alignment, Width};
 use tabled::{
     Table, Tabled,
     settings::{
@@ -101,6 +101,15 @@ fn print_short_table(path: &Path, cli: &Cli) {
     let mut table = Table::new(files);
 
     table.with(Style::rounded());
+
+    table.modify(Columns::new(..), Alignment::left());
+    table.modify(Columns::new(2..3), Alignment::right());
+
+    table.modify(Columns::new(0..1), Width::increase(15)); // Name
+    table.modify(Columns::new(1..2), Width::increase(8)); // Type
+    table.modify(Columns::new(2..3), Width::increase(10)); // Size
+    table.modify(Columns::new(3..4), Width::increase(15)); // Modified
+
     table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
 
     table.modify(Columns::new(0..1), Color::FG_BRIGHT_CYAN);
@@ -134,14 +143,10 @@ fn map_short_data(data: &mut Vec<FileEntryShort>, file: fs::DirEntry, _cli: &Cli
             .into_string()
             .unwrap_or("unknown name".into());
 
-        let colored_name = if meta.is_dir() {
-            file_name.bright_blue().bold().to_string()
-        } else {
-            file_name
-        };
+        let display_name = file_name.clone();
 
         data.push(FileEntryShort {
-            name: colored_name,
+            name: display_name,
             e_type: if meta.is_dir() {
                 EntryType::Dir
             } else {
@@ -162,7 +167,18 @@ fn print_long_table(path: &Path, cli: &Cli) {
     let get_files = get_long_files(path, cli);
     let mut table = Table::new(get_files);
 
-    table.with(Style::rounded()); // Use rounded corners for the table
+    table.with(Style::rounded());
+
+    table.modify(Columns::new(..), Alignment::left());
+    table.modify(Columns::new(4..5), Alignment::right());
+
+    // Set minimum widths to prevent cramping
+    table.modify(Columns::new(0..1), Width::increase(12)); // Permissions
+    table.modify(Columns::new(1..2), Width::increase(12)); // Owner
+    table.modify(Columns::new(2..3), Width::increase(20)); // Name
+    table.modify(Columns::new(3..4), Width::increase(6)); // Type
+    table.modify(Columns::new(4..5), Width::increase(10)); // Size
+    table.modify(Columns::new(5..6), Width::increase(15));
 
     table.modify(Rows::first(), Color::FG_BRIGHT_GREEN);
 
@@ -206,17 +222,12 @@ fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, _cli: &Cli) 
             .into_string()
             .unwrap_or("unknown name".into());
 
-        // Check if it's a directory and create a colored string
-        let colored_name = if meta.is_dir() {
-            file_name.bright_blue().bold().to_string()
-        } else {
-            file_name
-        };
+        let display_name = file_name.clone();
 
         data.push(FileEntryLong {
             permissions: format!("{:o}", meta.permissions().mode() & 0o777),
             owner,
-            name: colored_name, // Use the colored name here
+            name: display_name, // Use the colored name here
             e_type: if meta.is_dir() {
                 EntryType::Dir
             } else {
