@@ -244,54 +244,6 @@ fn map_long_data(data: &mut Vec<FileEntryLong>, file: fs::DirEntry, _cli: &Cli) 
     }
 }
 
-// fn print_tree(path: &Path, prefix: &str, cli: &Cli) {
-//     print_tree_with_depth(path, prefix, cli, 0, 3);
-// }
-//
-// fn print_tree_with_depth(
-//     path: &Path,
-//     prefix: &str,
-//     cli: &Cli,
-//     current_depth: usize,
-//     max_depth: usize,
-// ) {
-//     if current_depth >= max_depth {
-//         return;
-//     }
-//
-//     let Ok(entries) = fs::read_dir(path) else {
-//         return;
-//     };
-//     let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
-//
-//     entries.sort_by_key(|e| e.file_name());
-//
-//     let mut peekable_entries = entries.into_iter().peekable();
-//
-//     while let Some(entry) = peekable_entries.next() {
-//         let file_name_str = entry.file_name().to_string_lossy().to_string();
-//         if !cli.all && file_name_str.starts_with(".") {
-//             continue;
-//         }
-//
-//         let is_last = peekable_entries.peek().is_none();
-//         let connector = if is_last { "└── " } else { " ├── " };
-//
-//         println!("{}{}{}", prefix, connector, file_name_str.bright_blue());
-//
-//         if entry.path().is_dir() {
-//             let new_prefix = if is_last { " " } else { "| " };
-//             print_tree_with_depth(
-//                 &entry.path(),
-//                 &format!("{}{}", prefix, new_prefix),
-//                 cli,
-//                 current_depth + 1,
-//                 max_depth,
-//             );
-//         }
-//     }
-// }
-
 fn print_tree(path: &Path, cli: &Cli) {
     // Print the root directory name
     let root_name = path
@@ -310,7 +262,7 @@ fn print_tree_recursive(
     cli: &Cli,
     current_depth: usize,
     max_depth: usize,
-    is_root: bool,
+    _is_root: bool,
 ) {
     if current_depth >= max_depth {
         return;
@@ -335,7 +287,7 @@ fn print_tree_recursive(
     });
 
     // Filter out hidden files if needed
-    let mut visible_entries: Vec<_> = entries
+    let visible_entries: Vec<_> = entries
         .into_iter()
         .filter(|entry| {
             let file_name_str = entry.file_name().to_string_lossy().to_string();
